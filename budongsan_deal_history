@@ -1,0 +1,68 @@
+import json
+import requests
+import xmltodict
+import pandas as pd
+
+
+def get_df(lawd_cd, deal_ymd):
+    base_url = "http://apis.data.go.kr/1613000/RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade?serviceKey=" + "qGSXfyNlto%2Bvklv%2BKoTymvvs2yss0o7%2FiNGfzEpehotAW0098vEDaPrmTVEqPz%2FybkMVlnew428gJGu4KqdOzg%3D%3D" #요청 URL
+    base_url += f'&LAWD_CD={lawd_cd}' #행정구역 입력
+    base_url += f'&DEAL_YMD={deal_ymd}' #필요 월 입력
+    r = requests.get(base_url, verify=False)  #요청
+    data = json.loads(json.dumps(xmltodict.parse(r.text), ensure_ascii=False))  #리턴값 Joson으로 저장
+    _totalCount = int(data['response']['body']['totalCount'])
+    if _totalCount > 0:
+        limit_page = int((_totalCount / 10) + 1) #전체 페이지수 계산
+        for x in range(1, limit_page + 1): #페이지수별로 요청
+            req_url = base_url + '&pageNo={}'.format(str(x))
+            r = requests.get(req_url, verify=False)
+            data = json.loads(json.dumps(xmltodict.parse(r.text), ensure_ascii=False)) #결과데이터 Json을 저장
+            json_data = data['response']['body']['items'] #필요 데이터 저장
+            if json_data is not None: #For문으로 데이터 불러오기
+                temp = data['response']['body']['items']['item']
+                if type(temp) is list:
+                    for i in temp:
+                        _aptDong = i['aptDong']  # 동정보
+                        _aptNm = str(i['aptNm']).replace(',','.')  # 아파트 이름
+                        _buildYear = i['buildYear']  # 건축년도
+                        _buyerGbn = i['buyerGbn']  # 매수 구분(개인,법인)
+                        _cdealDay = i['cdealDay']
+                        _cdealType = i['cdealType']
+                        _dealAmount = str(i['dealAmount']).replace(',','') # 거래금액
+                        _dealDay = i['dealDay']  # 거래일'6',
+                        _dealMonth = i['dealMonth']  # 거래달'9',
+                        _dealYear = i['dealYear']  # 거래년도'2024',
+                        _dealingGbn = i['dealingGbn']  # 거래구분(중개,직거리)
+                        _estateAgentSggNm = i['estateAgentSggNm']  # 중개사 지역
+                        _excluUseAr = i['excluUseAr']  # 전용면적
+                        _floor = i['floor']  # 거래 층'10',
+                        _jibun = i['jibun']  # 거래 지번'447',
+                        _landLeaseholdGbn = i['landLeaseholdGbn']
+                        _rgstDate = i['rgstDate']  # 등기일
+                        _sggCd = i['sggCd']  # 행정구역번호 '11680',
+                        _slerGbn = i['slerGbn']  # 매도 구분(개인,법인)
+                        _umdNm = i['umdNm']  # 행정구역동
+                        tempdata = '{}.{}.{},{},{},{},서울시 강남구 {} {}\n'.format(_dealYear,_dealMonth,_dealDay,_aptNm,_dealAmount,_excluUseAr,_umdNm,_jibun)
+                        f = open('result.txt', "a")
+                        f.write(tempdata)
+                        f.close()
+
+if __name__ == '__main__':  #시작위치
+    f = open('result.txt', "a")
+    f.write('거래일,아파트명,거래금액,전용면적,주소\n')
+    f.close()
+    year = []
+    month = []
+    check_month = []
+    for i in range(2024,2019,-1): #년 생성
+        year.append(i)
+    for x in range(12,0,-1): #월 생성
+        month.append(str(x).zfill(2))
+    for y in year:
+        for m in month:
+            check_month.append('{}{}'.format(y,m))
+    # 서울시 강남구 행정구역 번호: 11680
+    for i in check_month:
+        get_df('11680',i) #강남구 행정구역 하드코딩
+    df = pd.DataFrame(pd.read_csv('result.txt', sep=',',encoding='cp949')) #Text File 읽기
+    df.to_excel('result.xlsx', index=False)  #Excel로 변환
